@@ -45,7 +45,7 @@
  * appropriate status code.
  */
 static int
-check_treshold(int value, int warn, int crit, int less)
+check_treshold(intmax_t value, int warn, int crit, int less)
 {
 	if (!less) {
 		if (value < warn)
@@ -67,7 +67,7 @@ check_treshold(int value, int warn, int crit, int less)
  * Exit with the correct return code.
  */
 static void
-message_and_exit(int level, int value, const char *info)
+message_and_exit(int level, intmax_t value, const char *info)
 {
 	if (level == 0)
 		printf("OK: ");
@@ -78,7 +78,7 @@ message_and_exit(int level, int value, const char *info)
 	else
 		printf("Uknown: ");
 		
-	printf("%d %s\n", value, info);
+	printf("%ju %s\n", value, info);
 	exit(level);
 }
 
@@ -89,12 +89,12 @@ check_stats(struct varnish_stats *VSL_stats, char *param, int w, int c, int less
 {
 	int level;
 	double ratio = 0;
-	int total;
+	int64_t total;
 	if (!strcmp(param, "hitrate")) {
 		total = VSL_stats->cache_hit + VSL_stats->cache_miss;
 		if (total > 0)
-			ratio = VSL_stats->cache_hit / total;
-		level = check_treshold((int)ratio*100, w, c, less);
+			ratio = 100.0 * (double)VSL_stats->cache_hit / (double)total;
+		level = check_treshold(ratio, w, c, less);
 		message_and_exit(level, ratio, "Hitrate ratio");
 	}
 #define MAC_STAT(n, t, f, d) \
