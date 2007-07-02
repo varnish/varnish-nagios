@@ -41,6 +41,9 @@
 
 
 
+/* Check if the tresholds against the value and return the
+ * appropriate status code.
+ */
 static int
 check_treshold(int value, int warn, int crit, int less)
 {
@@ -60,8 +63,11 @@ check_treshold(int value, int warn, int crit, int less)
 	
 }
 
+/* Print the appriate message according to the status level.
+ * Exit with the correct return code.
+ */
 static void
-message_and_exit(int level, int value, char *info)
+message_and_exit(int level, int value, const char *info)
 {
 	if (level == 0)
 		printf("OK: ");
@@ -76,13 +82,24 @@ message_and_exit(int level, int value, char *info)
 	exit(level);
 }
 
+/* Check the statistics for the requested parameter.
+ */
 static void
 check_stats(struct varnish_stats *VSL_stats, char *param, int w, int c, int less)
 {
+	int level;
+	double ratio = 0;
+	int total;
+	if (!strcmp(param, "hitrate")) {
+		total = VSL_stats->cache_hit + VSL_stats->cache_miss;
+		if (total > 0)
+			ratio = VSL_stats->cache_hit / total;
+		level = check_treshold((int)ratio*100, w, c, less);
+		message_and_exit(level, ratio, "Hitrate ratio");
+	}
 #define MAC_STAT(n, t, f, d) \
 	do { \
 		intmax_t ju = VSL_stats->n; \
-		int level; \
 		if (!strcmp(param, #n)) { \
 			level = check_treshold(ju, w, c, less); \
 			message_and_exit(level, ju, d); \
@@ -90,19 +107,27 @@ check_stats(struct varnish_stats *VSL_stats, char *param, int w, int c, int less
 	} while (0);
 #include "stat_field.h"
 #undef MAC_STAT
+	printf("Invalid parameter: %s\n", param);
+	exit(3);
 }
+
+/*-------------------------------------------------------------------------------*/
 
 static void
 help(void)
 {
-	fprintf(stderr, "usage: check_varnish -p param_name -c N -w N [-l] [-n varnish_name] [-v]\n"
+	fprintf(stderr, "usage: check_varnish [-p param_name -c N -w N] [-l] [-n varnish_name] [-v]\n"
 	 "Valid options:\n"
 	"-c N\t\t warn as critical at treshold N\n"
 	"-l\t\t specify that values should be less than tresholds for warnings to be issued\n"
 	"-n varnish_name\t specify varnish instance name\n"
-	"-p param_name\t specify the parameter to check. See valid parameters\n"
+	"-p param_name\t specify the parameter to check. See valid parameters. Default is hitrate\n"
 	"-v\t\t print verbose output. Can be specified up to three times\n"
 	"-w N\t\t warn as warning at treshold N\n"
+	"Valid parameters\n"
+	"All names listed in the left column when running varnishstat -1 are valid parameters.\n"
+	"In addition, the following parameters are valid:\n"
+	"hitrate\t The hitrate ratio. Will be between 0 and 100. Default tresholds are 95 and 90.\n"
 	);
 	exit(0);
 }
@@ -110,7 +135,7 @@ help(void)
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: check_varnish -p param_name -c N -w N [-l] [-n varnish_name] [-v]\n");
+	fprintf(stderr, "usage: check_varnish [-p param_name -c N -w N] [-l] [-n varnish_name] [-v]\n");
 	exit(3);
 }
 
@@ -156,6 +181,22 @@ main(int argc, char **argv)
 	if ((VSL_stats = VSL_OpenStats(n_arg)) == NULL)
 		exit(1);
 
+	/* Default: if no param specified, check hitratio.
+	 * If no warning and critical values are specified either,
+	 * set these to default
+	 */
+	if (param == NULL) {
+		param = strdup("hitrate");
+		if (!warning && !critical) {
+			warning = 95;
+			critical = 90;
+			less = 1;
+		}
+	}
+	
+	if (!param || (!critical && !warning))
+		usage();
+	
 	check_stats(VSL_stats, param, warning, critical, less);
 
 	exit(0);
