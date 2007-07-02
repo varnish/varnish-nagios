@@ -1,6 +1,6 @@
 # $Id$
 
-sbin_PROGRAMS = check_varnish
+libexec_PROGRAMS = check_varnish
 
 check_varnish_SOURCES = check_varnish.c
 
