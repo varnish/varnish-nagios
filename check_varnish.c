@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2006-2007 Linpro AS
+ * Copyright (c) 2007 Linpro AS
  * All rights reserved.
  *
  * Author: Cecilie Fritzvold <cecilihf@linpro.no>
@@ -41,34 +41,36 @@
 
 
 
-/* Check if the tresholds against the value and return the
- * appropriate status code.
+/*
+ * Check if the tresholds against the value and return the appropriate
+ * status code.
  */
 static int
 check_treshold(intmax_t value, int warn, int crit, int less)
 {
+
 	if (!less) {
 		if (value < warn)
-			return 0;
+			return (0);
 		else if (value < crit)
-			return 1;
-	}
-	else {
+			return (1);
+	} else {
 		if (value > warn)
-			return 0;
+			return (0);
 		else if (value > crit)
-			return 1;
+			return (1);
 	}
-	return 2;
-	
+	return (2);
 }
 
-/* Print the appriate message according to the status level.
- * Exit with the correct return code.
+/*
+ * Print the appriate message according to the status level.  Exit with
+ * the correct return code.
  */
 static void
 message_and_exit(int level, intmax_t value, const char *info)
 {
+
 	if (level == 0)
 		printf("OK: ");
 	else if (level == 1)
@@ -77,25 +79,27 @@ message_and_exit(int level, intmax_t value, const char *info)
 		printf("Critical: ");
 	else
 		printf("Uknown: ");
-		
+
 	printf("%ju %s\n", value, info);
 	exit(level);
 }
 
-/* Check the statistics for the requested parameter.
+/*
+ * Check the statistics for the requested parameter.
  */
 static void
 check_stats(struct varnish_stats *VSL_stats, char *param, int w, int c, int less)
 {
 	int level;
-	double ratio = 0;
-	int64_t total;
-	if (!strcmp(param, "hitrate")) {
-		total = VSL_stats->cache_hit + VSL_stats->cache_miss;
+
+	if (!strcmp(param, "ratio")) {
+		int64_t total = VSL_stats->cache_hit + VSL_stats->cache_miss;
+		double ratio = 0;
+
 		if (total > 0)
-			ratio = 100.0 * (double)VSL_stats->cache_hit / (double)total;
+			ratio = 100.0 * VSL_stats->cache_hit / total;
 		level = check_treshold(ratio, w, c, less);
-		message_and_exit(level, ratio, "Hitrate ratio");
+		message_and_exit(level, ratio, "Cache hit ratio");
 	}
 #define MAC_STAT(n, t, f, d) \
 	do { \
@@ -116,18 +120,23 @@ check_stats(struct varnish_stats *VSL_stats, char *param, int w, int c, int less
 static void
 help(void)
 {
-	fprintf(stderr, "usage: check_varnish [-p param_name -c N -w N] [-l] [-n varnish_name] [-v]\n"
-	 "Valid options:\n"
-	"-c N\t\t warn as critical at treshold N\n"
-	"-l\t\t specify that values should be less than tresholds for warnings to be issued\n"
-	"-n varnish_name\t specify varnish instance name\n"
-	"-p param_name\t specify the parameter to check. See valid parameters. Default is hitrate\n"
-	"-v\t\t print verbose output. Can be specified up to three times\n"
-	"-w N\t\t warn as warning at treshold N\n"
-	"Valid parameters\n"
-	"All names listed in the left column when running varnishstat -1 are valid parameters.\n"
-	"In addition, the following parameters are valid:\n"
-	"hitrate\t The hitrate ratio. Will be between 0 and 100. Default tresholds are 95 and 90.\n"
+	fprintf(stderr, "usage: "
+	    "check_varnish [-l] [-n varnish_name] [-p param_name [-c N] [-w N]]\n"
+	    "\n"
+	    "-l              Warn when the measured value is less, not more,\n"
+	    "                than the configured threshold.\n"
+	    "-n varnish_name Specify the Varnish instance name\n"
+	    "-p param_name   Specify the parameter to check (see below).\n"
+	    "                Default is 'ratio'.\n"
+	    "-c N            Set critical treshold to N\n"
+	    "-w N            Set warning threshold to N\n"
+	    "\n"
+	    "All items reported by varnishstat(1) are available - use the\n"
+	    "identifier listed in the left column by 'varnishstat -l'.  In\n"
+	    "addition, the following parameters are available:\n"
+	    "\n"
+	    "ratio   The cache hit ratio expressed as a percentage of hits to\n"
+	    "        hits + misses.  Default thresholds are 95 and 90.\n"
 	);
 	exit(0);
 }
@@ -135,7 +144,9 @@ help(void)
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: check_varnish [-p param_name -c N -w N] [-l] [-n varnish_name] [-v]\n");
+
+	fprintf(stderr, "usage: "
+	    "check_varnish [-l] [-n varnish_name] [-p param_name [-c N] [-w N]]\n");
 	exit(3);
 }
 
@@ -143,21 +154,21 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	int c;
 	struct varnish_stats *VSL_stats;
 	int critical = 0, warning = 0;
-	int verbose = 0;
 	const char *n_arg = NULL;
 	char *param = NULL;
 	int less = 0;
+	int opt;
 
-	while ((c = getopt(argc, argv, "c:hln:p:vw:")) != -1) {
-		switch (c) {
+	while ((opt = getopt(argc, argv, "c:hln:p:w:")) != -1) {
+		switch (opt) {
 		case 'c':
 			critical = atoi(optarg);
 			break;
 		case 'h':
 			help();
+			break;
 		case 'l':
 			less = 1;
 			break;
@@ -166,9 +177,6 @@ main(int argc, char **argv)
 			break;
 		case 'p':
 			param = strdup(optarg);
-			break;
-		case 'v':
-			verbose++;
 			break;
 		case 'w':
 			warning = atoi(optarg);
@@ -181,22 +189,21 @@ main(int argc, char **argv)
 	if ((VSL_stats = VSL_OpenStats(n_arg)) == NULL)
 		exit(1);
 
-	/* Default: if no param specified, check hitratio.
-	 * If no warning and critical values are specified either,
-	 * set these to default
+	/* Default: if no param specified, check hit ratio.  If no warning
+	 * and critical values are specified either, set these to default.
 	 */
 	if (param == NULL) {
-		param = strdup("hitrate");
+		param = strdup("ratio");
 		if (!warning && !critical) {
 			warning = 95;
 			critical = 90;
 			less = 1;
 		}
 	}
-	
+
 	if (!param || (!critical && !warning))
 		usage();
-	
+
 	check_stats(VSL_stats, param, warning, critical, less);
 
 	exit(0);
