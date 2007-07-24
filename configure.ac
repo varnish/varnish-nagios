@@ -3,7 +3,7 @@
 AC_PREREQ(2.59)
 AC_COPYRIGHT([Copyright (c) 2007 Linpro AS])
 AC_REVISION([$Id$])
-AC_INIT([check_varnish], [trunk], [varnish-dev@projects.linpro.no])
+AC_INIT([nagios-varnish-plugin], [1.0], [varnish-dev@projects.linpro.no])
 AC_CONFIG_SRCDIR(check_varnish.c)
 AM_CONFIG_HEADER(config.h)
 
