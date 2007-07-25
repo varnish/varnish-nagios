@@ -30,6 +30,9 @@
  * Nagios plugin for Varnish
  */
 
+#include <inttypes.h>
+#include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,86 +42,157 @@
 #include "shmlog.h"
 #include "varnishapi.h"
 
+static int verbose = 0;
+
+struct range {
+	intmax_t	lo;
+	intmax_t	hi;
+	int		inverted:1;
+	int		defined:1;
+};
+
+static struct range critical;
+static struct range warning;
+
+enum {
+	NAGIOS_OK = 0,
+	NAGIOS_WARNING = 1,
+	NAGIOS_CRITICAL = 2,
+	NAGIOS_UNKNOWN = 3,
+};
+
+static const char *status_text[] = {
+	[NAGIOS_OK] = "OK",
+	[NAGIOS_WARNING] = "WARNING",
+	[NAGIOS_CRITICAL] = "CRITICAL",
+	[NAGIOS_UNKNOWN] = "UNKNOWN",
+};
+
+/*
+ * Parse a range specification
+ */
+static int
+parse_range(const char *spec, struct range *range)
+{
+	const char *delim;
+	char *end;
+
+	/* @ means invert the range */
+	if (*spec == '@') {
+		++spec;
+		range->inverted = 1;
+	} else {
+		range->inverted = 0;
+	}
+
+	/* empty spec... */
+	if (*spec == '\0')
+		return (-1);
+
+	if ((delim = strchr(spec, ':')) != NULL) {
+		/*
+		 * The Nagios plugin documentation says nothing about how
+		 * to interpret ":N", so we disallow it.  Allowed forms
+		 * are "~:N", "~:", "M:" and "M:N".
+		 */
+		if (delim - spec == 1 && *spec == '~') {
+			range->lo = INTMAX_MIN;
+		} else {
+			range->lo = strtoimax(spec, &end, 10);
+			if (end != delim)
+				return (-1);
+		}
+		if (*(delim + 1) != '\0') {
+			range->hi = strtoimax(delim + 1, &end, 10);
+			if (*end != '\0')
+				return (-1);
+		} else {
+			range->hi = INTMAX_MAX;
+		}
+	} else {
+		/*
+		 * Allowed forms are N
+		 */
+		range->lo = 0;
+		range->hi = strtol(spec, &end, 10);
+		if (*end != '\0')
+			return (-1);
+	}
+
+	/*
+	 * Sanity
+	 */
+	if (range->lo > range->hi)
+		return (-1);
+
+	range->defined = 1;
+	return (0);
+}
+
+/*
+ * Check if a given value is within a given range.
+ */
+static int
+inside_range(intmax_t value, const struct range *range)
+{
+
+	if (range->inverted)
+		return (value < range->lo || value > range->hi);
+	return (value >= range->lo && value <= range->hi);
+}
+
 /*
  * Check if the thresholds against the value and return the appropriate
  * status code.
  */
 static int
-check_threshold(intmax_t value, int warn, int crit, int less)
+check_thresholds(intmax_t value)
 {
 
-	if (!less) {
-		if (value < warn)
-			return (0);
-		else if (value < crit)
-			return (1);
-	} else {
-		if (value > warn)
-			return (0);
-		else if (value > crit)
-			return (1);
-	}
-	return (2);
-}
-
-/*
- * Print the appriate message according to the status level.  Exit with
- * the correct return code.
- */
-static void
-message_and_exit(int level, intmax_t value, const char *info)
-{
-
-	if (level == 0)
-		printf("OK: ");
-	else if (level == 1)
-		printf("Warning: ");
-	else if (level == 2)
-		printf("Critical: ");
-	else
-		printf("Uknown: ");
-
-	printf("%ju %s\n", value, info);
-	exit(level);
+	if (!warning.defined && !critical.defined)
+		return (NAGIOS_UNKNOWN);
+	if (critical.defined && !inside_range(value, &critical))
+		return (NAGIOS_CRITICAL);
+	if (warning.defined && !inside_range(value, &warning))
+		return (NAGIOS_WARNING);
+	return (NAGIOS_OK);
 }
 
 /*
  * Check the statistics for the requested parameter.
  */
 static void
-check_stats(struct varnish_stats *VSL_stats, char *param, int w, int c, int less)
+check_stats(struct varnish_stats *VSL_stats, char *param)
 {
-	int level;
+	const char *info;
+	intmax_t value;
+	int status;
 
 	if (strcmp(param, "ratio") == 0) {
 		intmax_t total = VSL_stats->cache_hit + VSL_stats->cache_miss;
-		double ratio = 0;
 
-		if (total > 0)
-			ratio = 100.0 * VSL_stats->cache_hit / total;
-		level = check_threshold(ratio, w, c, less);
-		message_and_exit(level, ratio, "Cache hit ratio");
+		value = total ? (100 * VSL_stats->cache_hit / total) : 0;
+		info = "Cache hit ratio";
 	}
-	if (strcmp(param, "usage") == 0) {
+	else if (strcmp(param, "usage") == 0) {
 		intmax_t total = VSL_stats->sm_balloc + VSL_stats->sm_bfree;
-		double ratio = 0;
 
-		if (total > 0)
-			ratio = 100.0 * VSL_stats->sm_balloc / total;
-		level = check_threshold(ratio, w, c, less);
-		message_and_exit(level, ratio, "Cache file usage");
+		value = total ? (100 * VSL_stats->sm_balloc / total) : 0;
+		info = "Cache file usage";
 	}
 #define MAC_STAT(n, t, f, d) \
 	else if (strcmp(param, #n) == 0) { \
-		intmax_t val = VSL_stats->n; \
-		level = check_threshold(val, w, c, less); \
-		message_and_exit(level, val, d); \
+		value = VSL_stats->n; \
+		info = d; \
 	}
 #include "stat_field.h"
 #undef MAC_STAT
 	else
 		printf("Unknown parameter '%s'\n", param);
-	exit(3);
+
+	status = check_thresholds(value);
+	printf("VARNISH %s: %s|%s=%jd\n", status_text[status], info, param, value);
+	exit(status);
 }
 
 /*-------------------------------------------------------------------------------*/
@@ -128,15 +202,14 @@ help(void)
 {
 
 	fprintf(stderr, "usage: "
-	    "check_varnish [-l] [-n varnish_name] [-p param_name [-c N] [-w N]]\n"
+	    "check_varnish [-lv] [-n varnish_name] [-p param_name [-c N] [-w N]]\n"
 	    "\n"
-	    "-l              Warn when the measured value is less, not more,\n"
-	    "                than the configured threshold.\n"
+	    "-v              Increase verbosity.\n"
 	    "-n varnish_name Specify the Varnish instance name\n"
 	    "-p param_name   Specify the parameter to check (see below).\n"
-	    "                Default is 'ratio'.\n"
-	    "-c N            Set critical threshold to N\n"
-	    "-w N            Set warning threshold to N\n"
+	    "                The default is 'ratio'.\n"
+	    "-c [@][lo:]hi   Set critical threshold\n"
+	    "-w [@][lo:]hi   Set warning threshold\n"
 	    "\n"
 	    "All items reported by varnishstat(1) are available - use the\n"
 	    "identifier listed in the left column by 'varnishstat -l'.  In\n"
@@ -154,7 +227,7 @@ usage(void)
 {
 
 	fprintf(stderr, "usage: "
-	    "check_varnish [-l] [-n varnish_name] [-p param_name [-c N] [-w N]]\n");
+	    "check_varnish [-lv] [-n varnish_name] [-p param_name [-c N] [-w N]]\n");
 	exit(3);
 }
 
@@ -163,22 +236,18 @@ int
 main(int argc, char **argv)
 {
 	struct varnish_stats *VSL_stats;
-	int critical = 0, warning = 0;
 	const char *n_arg = NULL;
 	char *param = NULL;
-	int less = 0;
 	int opt;
 
-	while ((opt = getopt(argc, argv, "c:hln:p:w:")) != -1) {
+	while ((opt = getopt(argc, argv, "c:hn:p:vw:")) != -1) {
 		switch (opt) {
 		case 'c':
-			critical = atoi(optarg);
+			if (parse_range(optarg, &critical) != 0)
+				usage();
 			break;
 		case 'h':
 			help();
-			break;
-		case 'l':
-			less = 1;
 			break;
 		case 'n':
 			n_arg = optarg;
@@ -186,8 +255,12 @@ main(int argc, char **argv)
 		case 'p':
 			param = strdup(optarg);
 			break;
+		case 'v':
+			++verbose;
+			break;
 		case 'w':
-			warning = atoi(optarg);
+			if (parse_range(optarg, &warning) != 0)
+				usage();
 			break;
 		default:
 			usage();
@@ -202,17 +275,16 @@ main(int argc, char **argv)
 	 */
 	if (param == NULL) {
 		param = strdup("ratio");
-		if (!warning && !critical) {
-			warning = 95;
-			critical = 90;
-			less = 1;
-		}
+		if (!warning.defined)
+			parse_range("95:", &warning);
+		if (!critical.defined)
+			parse_range("90:", &critical);
 	}
 
-	if (!param || (!critical && !warning))
+	if (!param)
 		usage();
 
-	check_stats(VSL_stats, param, warning, critical, less);
+	check_stats(VSL_stats, param);
 
 	exit(0);
 }
