@@ -92,8 +92,8 @@ check_stats(struct varnish_stats *VSL_stats, char *param, int w, int c, int less
 {
 	int level;
 
-	if (!strcmp(param, "ratio")) {
-		int64_t total = VSL_stats->cache_hit + VSL_stats->cache_miss;
+	if (strcmp(param, "ratio") == 0) {
+		intmax_t total = VSL_stats->cache_hit + VSL_stats->cache_miss;
 		double ratio = 0;
 
 		if (total > 0)
@@ -102,16 +102,15 @@ check_stats(struct varnish_stats *VSL_stats, char *param, int w, int c, int less
 		message_and_exit(level, ratio, "Cache hit ratio");
 	}
 #define MAC_STAT(n, t, f, d) \
-	do { \
-		intmax_t ju = VSL_stats->n; \
-		if (!strcmp(param, #n)) { \
-			level = check_treshold(ju, w, c, less); \
-			message_and_exit(level, ju, d); \
-		} \
-	} while (0);
+	else if (strcmp(param, #n) == 0) { \
+		intmax_t val = VSL_stats->n; \
+		level = check_treshold(val, w, c, less); \
+		message_and_exit(level, val, d); \
+	}
 #include "stat_field.h"
 #undef MAC_STAT
-	printf("Invalid parameter: %s\n", param);
+	else
+		printf("Unknown parameter '%s'\n", param);
 	exit(3);
 }
 
@@ -120,6 +119,7 @@ check_stats(struct varnish_stats *VSL_stats, char *param, int w, int c, int less
 static void
 help(void)
 {
+
 	fprintf(stderr, "usage: "
 	    "check_varnish [-l] [-n varnish_name] [-p param_name [-c N] [-w N]]\n"
 	    "\n"
