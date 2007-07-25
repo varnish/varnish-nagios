@@ -99,6 +99,15 @@ check_stats(struct varnish_stats *VSL_stats, char *param, int w, int c, int less
 		level = check_threshold(ratio, w, c, less);
 		message_and_exit(level, ratio, "Cache hit ratio");
 	}
+	if (strcmp(param, "usage") == 0) {
+		intmax_t total = VSL_stats->sm_balloc + VSL_stats->sm_bfree;
+		double ratio = 0;
+
+		if (total > 0)
+			ratio = 100.0 * VSL_stats->sm_balloc / total;
+		level = check_threshold(ratio, w, c, less);
+		message_and_exit(level, ratio, "Cache file usage");
+	}
 #define MAC_STAT(n, t, f, d) \
 	else if (strcmp(param, #n) == 0) { \
 		intmax_t val = VSL_stats->n; \
@@ -135,6 +144,7 @@ help(void)
 	    "\n"
 	    "ratio   The cache hit ratio expressed as a percentage of hits to\n"
 	    "        hits + misses.  Default thresholds are 95 and 90.\n"
+	    "usage   Cache file usage as a percentage of the total cache space.\n"
 	);
 	exit(0);
 }
