@@ -39,14 +39,12 @@
 #include "shmlog.h"
 #include "varnishapi.h"
 
-
-
 /*
- * Check if the tresholds against the value and return the appropriate
+ * Check if the thresholds against the value and return the appropriate
  * status code.
  */
 static int
-check_treshold(intmax_t value, int warn, int crit, int less)
+check_threshold(intmax_t value, int warn, int crit, int less)
 {
 
 	if (!less) {
@@ -98,13 +96,13 @@ check_stats(struct varnish_stats *VSL_stats, char *param, int w, int c, int less
 
 		if (total > 0)
 			ratio = 100.0 * VSL_stats->cache_hit / total;
-		level = check_treshold(ratio, w, c, less);
+		level = check_threshold(ratio, w, c, less);
 		message_and_exit(level, ratio, "Cache hit ratio");
 	}
 #define MAC_STAT(n, t, f, d) \
 	else if (strcmp(param, #n) == 0) { \
 		intmax_t val = VSL_stats->n; \
-		level = check_treshold(val, w, c, less); \
+		level = check_threshold(val, w, c, less); \
 		message_and_exit(level, val, d); \
 	}
 #include "stat_field.h"
@@ -128,7 +126,7 @@ help(void)
 	    "-n varnish_name Specify the Varnish instance name\n"
 	    "-p param_name   Specify the parameter to check (see below).\n"
 	    "                Default is 'ratio'.\n"
-	    "-c N            Set critical treshold to N\n"
+	    "-c N            Set critical threshold to N\n"
 	    "-w N            Set warning threshold to N\n"
 	    "\n"
 	    "All items reported by varnishstat(1) are available - use the\n"
