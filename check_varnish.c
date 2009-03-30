@@ -38,6 +38,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/time.h>
 
 #include "shmlog.h"
 #include "varnishapi.h"
@@ -165,10 +166,18 @@ static void
 check_stats(struct varnish_stats *VSL_stats, char *param)
 {
 	const char *info;
+	struct timeval tv;
+	double up;
 	intmax_t value;
 	int status;
 
-	if (strcmp(param, "ratio") == 0) {
+	gettimeofday(&tv, NULL);
+	up = tv.tv_sec - VSL_stats->start_time;
+	if (strcmp(param, "uptime") == 0) {
+		value = up;
+		info = "Uptime";
+	}
+	else if (strcmp(param, "ratio") == 0) {
 		intmax_t total = VSL_stats->cache_hit + VSL_stats->cache_miss;
 
 		value = total ? (100 * VSL_stats->cache_hit / total) : 0;
@@ -215,6 +224,7 @@ help(void)
 	    "identifier listed in the left column by 'varnishstat -l'.  In\n"
 	    "addition, the following parameters are available:\n"
 	    "\n"
+	    "uptime  How long the cache has been running (in seconds)\n"
 	    "ratio   The cache hit ratio expressed as a percentage of hits to\n"
 	    "        hits + misses.  Default thresholds are 95 and 90.\n"
 	    "usage   Cache file usage as a percentage of the total cache space.\n"
