@@ -180,7 +180,7 @@ check_stats(struct varnish_stats *VSL_stats, char *param)
 		value = total ? (100 * VSL_stats->sm_balloc / total) : 0;
 		info = "Cache file usage";
 	}
-#define MAC_STAT(n, t, f, d) \
+#define MAC_STAT(n, t, f, i, d)		   \
 	else if (strcmp(param, #n) == 0) { \
 		value = VSL_stats->n; \
 		info = d; \
