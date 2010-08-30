@@ -1,5 +1,6 @@
 /*-
  * Copyright (c) 2007-2009 Linpro AS
+ * Copyright (c) 2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Cecilie Fritzvold <cecilihf@linpro.no>
@@ -39,8 +40,9 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <locale.h>
 
-#include "shmlog.h"
+#include "vsc.h"
 #include "varnishapi.h"
 
 static int verbose = 0;
@@ -163,7 +165,7 @@ check_thresholds(intmax_t value)
  * Check the statistics for the requested parameter.
  */
 static void
-check_stats(struct varnish_stats *VSL_stats, char *param)
+check_stats(const struct vsc_main *stats, char *param)
 {
 	const char *info;
 	struct timeval tv;
@@ -171,36 +173,30 @@ check_stats(struct varnish_stats *VSL_stats, char *param)
 	intmax_t value;
 	int status;
 
-	gettimeofday(&tv, NULL);
-	up = tv.tv_sec - VSL_stats->start_time;
-	if (strcmp(param, "uptime") == 0) {
-		value = up;
-		info = "Uptime";
-	}
-	else if (strcmp(param, "ratio") == 0) {
-		intmax_t total = VSL_stats->cache_hit + VSL_stats->cache_miss;
+	if (strcmp(param, "ratio") == 0) {
+		intmax_t total = stats->cache_hit + stats->cache_miss;
 
-		value = total ? (100 * VSL_stats->cache_hit / total) : 0;
+		value = total ? (100 * stats->cache_hit / total) : 0;
 		info = "Cache hit ratio";
 	}
 	else if (strcmp(param, "usage") == 0) {
-		intmax_t total = VSL_stats->sm_balloc + VSL_stats->sm_bfree;
+		intmax_t total = stats->sm_balloc + stats->sm_bfree;
 
-		value = total ? (100 * VSL_stats->sm_balloc / total) : 0;
+		value = total ? (100 * stats->sm_balloc / total) : 0;
 		info = "Cache file usage";
 	}
-#define MAC_STAT(n, t, f, i, d)		   \
+#define VSC_F_MAIN(n, t, l, f, e)	   \
 	else if (strcmp(param, #n) == 0) { \
-		value = VSL_stats->n; \
-		info = d; \
+		value = stats->n; \
+		info = e; \
 	}
-#include "stat_field.h"
-#undef MAC_STAT
+#include "vsc_fields.h"
+#undef VSC_F_MAIN
 	else
 		printf("Unknown parameter '%s'\n", param);
 
 	status = check_thresholds(value);
-	printf("VARNISH %s: %s|%s=%jd\n", status_text[status], info, param, value);
+	printf("VARNISH %s: %s (%'jd)|%s=%jd\n", status_text[status], info, value, param, value);
 	exit(status);
 }
 
@@ -245,10 +241,16 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	struct varnish_stats *VSL_stats;
+	struct VSM_data *vd;
 	const char *n_arg = NULL;
+	const struct vsc_main *VSC_main;
 	char *param = NULL;
 	int opt;
+
+	setlocale(LC_ALL, "");
+
+	vd = VSM_New();
+	VSC_Setup(vd);
 
 	while ((opt = getopt(argc, argv, "c:hn:p:vw:")) != -1) {
 		switch (opt) {
@@ -260,7 +262,7 @@ main(int argc, char **argv)
 			help();
 			break;
 		case 'n':
-			n_arg = optarg;
+			VSC_Arg(vd, opt, optarg);
 			break;
 		case 'p':
 			param = strdup(optarg);
@@ -277,8 +279,10 @@ main(int argc, char **argv)
 		}
 	}
 
-	if ((VSL_stats = VSL_OpenStats(n_arg)) == NULL)
+	if (VSC_Open(vd, 1))
 		exit(1);
+
+	VSC_main = VSC_Main(vd);
 
 	/* Default: if no param specified, check hit ratio.  If no warning
 	 * and critical values are specified either, set these to default.
@@ -294,7 +298,7 @@ main(int argc, char **argv)
 	if (!param)
 		usage();
 
-	check_stats(VSL_stats, param);
+	check_stats(VSC_main, param);
 
 	exit(0);
 }
