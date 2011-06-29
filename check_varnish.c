@@ -165,7 +165,7 @@ check_thresholds(intmax_t value)
  * Check the statistics for the requested parameter.
  */
 static void
-check_stats(const struct vsc_main *stats, char *param)
+check_stats(const struct VSC_C_main *stats, char *param)
 {
 	const char *info;
 	struct timeval tv;
@@ -177,23 +177,25 @@ check_stats(const struct vsc_main *stats, char *param)
 		intmax_t total = stats->cache_hit + stats->cache_miss;
 
 		value = total ? (100 * stats->cache_hit / total) : 0;
-		info = "Cache hit ratio";
-	}
-	else if (strcmp(param, "usage") == 0) {
-		intmax_t total = stats->sm_balloc + stats->sm_bfree;
+               info = "Cache hit ratio";
+       }
+       else if (strcmp(param, "usage") == 0) {
+               intmax_t total = stats->sms_balloc + stats->sms_bfree;
 
-		value = total ? (100 * stats->sm_balloc / total) : 0;
-		info = "Cache file usage";
-	}
-#define VSC_F_MAIN(n, t, l, f, e)	   \
-	else if (strcmp(param, #n) == 0) { \
-		value = stats->n; \
-		info = e; \
-	}
+               value = total ? (100 * stats->sms_balloc / total) : 0;
+               info = "Cache file usage";
+       }
+#define VSC_DO_MAIN
+#define VSC_F(n, t, l, f, e)      \
+       else if (strcmp(param, #n) == 0) { \
+               value = stats->n; \
+               info = e; \
+       }
 #include "vsc_fields.h"
-#undef VSC_F_MAIN
-	else
-		printf("Unknown parameter '%s'\n", param);
+#undef VSC_F
+#undef VSC_DO_MAIN
+       else
+               printf("Unknown parameter '%s'\n", param);
 
 	status = check_thresholds(value);
 	printf("VARNISH %s: %s (%'jd)|%s=%jd\n", status_text[status], info, value, param, value);
@@ -241,11 +243,11 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	struct VSM_data *vd;
-	const char *n_arg = NULL;
-	const struct vsc_main *VSC_main;
-	char *param = NULL;
-	int opt;
+       struct VSM_data *vd;
+       const char *n_arg = NULL;
+       const struct VSC_C_main *VSC_main;
+       char *param = NULL;
+       int opt;
 
 	setlocale(LC_ALL, "");
 
