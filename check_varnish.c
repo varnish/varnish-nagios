@@ -1,9 +1,9 @@
 /*-
- * Copyright (c) 2007-2009 Linpro AS
- * Copyright (c) 2010 Varnish Software AS
+ * Copyright (c) 2007-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Cecilie Fritzvold <cecilihf@linpro.no>
+ * Author: Tollef Fog Heen <tfheen@varnish-software.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
