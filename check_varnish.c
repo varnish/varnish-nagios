@@ -196,7 +196,7 @@ check_stats_cb(void *priv, const struct VSC_point * const pt)
 		(pt->section->fantom->ident[0] == 0 ? "" : "."),
 		 pt->desc->name);
 	p = priv;
-	assert(!strcmp(pt->desc->fmt, "uint64_t"));
+	assert(!strcmp(pt->desc->ctype, "uint64_t"));
 #elif defined(HAVE_VARNISHAPI_3)
 	assert(sizeof(tmp) > (strlen(pt->class) + 1 +
 			      strlen(pt->ident) + 1 +
