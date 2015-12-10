@@ -185,7 +185,7 @@ check_stats_cb(void *priv, const struct VSC_point * const pt)
 	if (pt == NULL)
 		return(0);
 
-#if defined(HAVE_VARNISHAPI_4_1)
+#if defined(HAVE_VARNISHAPI_4_1) || defined(HAVE_VARNISHAPI_4)
 	assert(sizeof(tmp) > (strlen(pt->section->fantom->type) + 1 +
 			      strlen(pt->section->fantom->ident) + 1 +
 			      strlen(pt->desc->name) + 1));
@@ -196,18 +196,10 @@ check_stats_cb(void *priv, const struct VSC_point * const pt)
 		(pt->section->fantom->ident[0] == 0 ? "" : "."),
 		 pt->desc->name);
 	p = priv;
+#endif
+#if defined(HAVE_VARNISHAPI_4_1)
 	assert(!strcmp(pt->desc->ctype, "uint64_t"));
 #elif defined(HAVE_VARNISHAPI_4)
-	assert(sizeof(tmp) > (strlen(pt->section->fantom->type) + 1 +
-			      strlen(pt->section->fantom->ident) + 1 +
-			      strlen(pt->desc->name) + 1));
-	snprintf(tmp, sizeof(tmp), "%s%s%s%s%s",
-		(pt->section->fantom->type[0] == 0 ? "" : pt->section->fantom->type),
-		(pt->section->fantom->type[0] == 0 ? "" : "."),
-		(pt->section->fantom->ident[0] == 0 ? "" : pt->section->fantom->ident),
-		(pt->section->fantom->ident[0] == 0 ? "" : "."),
-		 pt->desc->name);
-	p = priv;
 	assert(!strcmp(pt->desc->fmt, "uint64_t"));
 #elif defined(HAVE_VARNISHAPI_3)
 	assert(sizeof(tmp) > (strlen(pt->class) + 1 +
