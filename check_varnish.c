@@ -43,7 +43,7 @@
 #include <locale.h>
 #include <assert.h>
 
-#if defined(HAVE_VARNISHAPI_4)
+#if defined(HAVE_VARNISHAPI_4) || defined(HAVE_VARNISHAPI_4_1)
 #include <vapi/vsc.h>
 #include <vapi/vsm.h>
 #elif defined(HAVE_VARNISHAPI_3)
@@ -185,7 +185,7 @@ check_stats_cb(void *priv, const struct VSC_point * const pt)
 	if (pt == NULL)
 		return(0);
 
-#if defined(HAVE_VARNISHAPI_4)
+#if defined(HAVE_VARNISHAPI_4_1) || defined(HAVE_VARNISHAPI_4)
 	assert(sizeof(tmp) > (strlen(pt->section->fantom->type) + 1 +
 			      strlen(pt->section->fantom->ident) + 1 +
 			      strlen(pt->desc->name) + 1));
@@ -196,6 +196,10 @@ check_stats_cb(void *priv, const struct VSC_point * const pt)
 		(pt->section->fantom->ident[0] == 0 ? "" : "."),
 		 pt->desc->name);
 	p = priv;
+#endif
+#if defined(HAVE_VARNISHAPI_4_1)
+	assert(!strcmp(pt->desc->ctype, "uint64_t"));
+#elif defined(HAVE_VARNISHAPI_4)
 	assert(!strcmp(pt->desc->fmt, "uint64_t"));
 #elif defined(HAVE_VARNISHAPI_3)
 	assert(sizeof(tmp) > (strlen(pt->class) + 1 +
@@ -212,7 +216,7 @@ check_stats_cb(void *priv, const struct VSC_point * const pt)
 #endif
 	if (strcmp(tmp, p->param) == 0) {
 		p->found = 1;
-#if defined(HAVE_VARNISHAPI_4)
+#if defined(HAVE_VARNISHAPI_4) || defined(HAVE_VARNISHAPI_4_1)
 		p->info = pt->desc->sdesc;
 #elif defined(HAVE_VARNISHAPI_3)
 		p->info = pt->desc;
@@ -241,7 +245,7 @@ check_stats(struct VSM_data *vd, char *param)
 	priv.found = 0;
 	priv.param = param;
 
-#if defined(HAVE_VARNISHAPI_4)
+#if defined(HAVE_VARNISHAPI_4) || defined(HAVE_VARNISHAPI_4_1)
 	(void)VSC_Iter(vd, NULL, check_stats_cb, &priv);
 #elif defined(HAVE_VARNISHAPI_3)
 	(void)VSC_Iter(vd, check_stats_cb, &priv);
@@ -351,7 +355,7 @@ main(int argc, char **argv)
 		}
 	}
 
-#if defined(HAVE_VARNISHAPI_4)
+#if defined(HAVE_VARNISHAPI_4) || defined(HAVE_VARNISHAPI_4_1)
 	if (VSM_Open(vd))
 		exit(1);
 #elif defined(HAVE_VARNISHAPI_3)
