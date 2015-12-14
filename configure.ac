@@ -43,6 +43,7 @@ AC_C_CONST
 
 # Checks for library functions.
 AC_TYPE_SIZE_T
+AC_SEARCH_LIBS([pow],[m],[],[AC_MSG_ERROR([unable to find libm])])
 
 # Now that we're done using the compiler to look for functions and
 # libraries, set CFLAGS to what we want them to be for our own code
