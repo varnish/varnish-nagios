@@ -356,8 +356,10 @@ main(int argc, char **argv)
 	}
 
 #if defined(HAVE_VARNISHAPI_4) || defined(HAVE_VARNISHAPI_4_1)
-	if (VSM_Open(vd))
+	if (VSM_Open(vd)) {
+		printf("%s", VSM_Error(vd));
 		exit(2);
+	}
 #elif defined(HAVE_VARNISHAPI_3)
 	if (VSC_Open(vd, 1))
 		exit(2);
