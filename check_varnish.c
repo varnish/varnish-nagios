@@ -257,7 +257,7 @@ check_stats(struct VSM_data *vd, char *param)
 	}
 	if (priv.found != 1) {
 		printf("Unknown parameter '%s'\n", param);
-		exit(1);
+		exit(3);
 	}
 
 	status = check_thresholds(priv.value);
@@ -357,10 +357,10 @@ main(int argc, char **argv)
 
 #if defined(HAVE_VARNISHAPI_4) || defined(HAVE_VARNISHAPI_4_1)
 	if (VSM_Open(vd))
-		exit(1);
+		exit(2);
 #elif defined(HAVE_VARNISHAPI_3)
 	if (VSC_Open(vd, 1))
-		exit(1);
+		exit(2);
 #endif
 
 	/* Default: if no param specified, check hit ratio.  If no warning
